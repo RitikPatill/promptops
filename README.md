@@ -14,7 +14,7 @@ PromptOps fills that gap.
 - LLM developers who want CI-friendly eval output
 - Anyone who needs rigorous, reproducible prompt testing without a cloud dependency
 
-## What Works (M2)
+## What Works (M3)
 
 ### M1 — Scaffold
 - Python package at `src/promptops/` with `__version__ = "0.1.0"`
@@ -30,18 +30,37 @@ PromptOps fills that gap.
 - Example fixtures under `examples/`: `summarise_v1.yaml` (prompt) and `summarise_tests.yaml` (5-case test suite)
 - `expected` per test case accepts `null`, a regex string, or a list of must-contain strings
 
+### M3 — Eval engine + deterministic scoring
+- `src/promptops/engine.py` — Jinja2 variable resolution, OpenAI and Anthropic dispatch, token cost estimation
+- `src/promptops/scorer.py` — deterministic scoring: regex match or substring containment checks
+- `promptops run <prompt.yaml> --suite <tests.yaml>` — runs all test cases, prints a Rich table with per-case pass/fail, latency, and cost; prints aggregate pass rate and total cost
+- Provider selected via `--provider` flag or `PROMPTOPS_PROVIDER` env var (default: `openai`)
+- Model override via `--model` flag; defaults to `gpt-4o-mini` (OpenAI) or `claude-haiku-4-5-20251001` (Anthropic)
+- JSON export via `--output results.json` for CI integration
+- Cost table covers `gpt-4o-mini`, `gpt-4o`, `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`
+
 ```bash
+# Set your API key
+export OPENAI_API_KEY=sk-...
+# or for Anthropic:
+export ANTHROPIC_API_KEY=sk-ant-...
+export PROMPTOPS_PROVIDER=anthropic
+
+# Run eval
+promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml
+
+# With JSON export
+promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml --output results.json
+
+# Validate files (M2)
 promptops validate examples/summarise_v1.yaml
 promptops validate examples/summarise_tests.yaml
 ```
 
 ## Planned Features
 
-- **Eval engine**: resolves variables, calls OpenAI or Anthropic (env-var selected), collects `{output, latency_ms, token_cost}`
-- **Scoring**: two layers — deterministic (regex/substring match) and LLM-as-judge (1–5 Likert score with reasoning)
-- **Rich CLI output**: colour-coded table of per-case scores, aggregate pass-rate, cost estimate
-- **Diff mode**: `promptops diff v1.yaml v2.yaml --suite tests.yaml` runs both prompts and renders a side-by-side terminal diff of outputs and scores
-- **Export**: `--output results.json` for CI integration
+- **LLM-as-judge scoring**: 1–5 Likert score with reasoning per test case
+- **Rich diff mode**: `promptops diff v1.yaml v2.yaml --suite tests.yaml` — side-by-side terminal diff of outputs and scores
 
 ## Out of Scope (v1)
 
@@ -67,6 +86,7 @@ Options:
   --help         Show this message and exit.
 
 Commands:
+  run       Run a prompt against a test suite and display deterministic scores.
   validate  Validate a prompt or test-suite YAML file.
 ```
 
@@ -85,13 +105,16 @@ promptops/
 │   └── promptops/
 │       ├── __init__.py     # package version
 │       ├── cli.py          # Typer app, entry point for all subcommands
-│       ├── models.py       # Pydantic v2 models: PromptDefinition, TestSuite, …
+│       ├── engine.py       # eval runner: Jinja2 render, API dispatch, cost estimation
+│       ├── models.py       # Pydantic v2 models: PromptDefinition, TestSuite, EvalResult, …
+│       ├── scorer.py       # deterministic scoring: regex + substring checks
 │       └── store.py        # YAML loaders: load_prompt, load_suite
 ├── examples/
 │   ├── summarise_v1.yaml   # example prompt definition
 │   └── summarise_tests.yaml # 5-case test suite
 ├── tests/
 │   ├── test_cli.py         # CLI smoke tests
+│   ├── test_engine.py      # engine + scorer unit tests (all mocked, no API key needed)
 │   ├── test_models.py      # model + loader unit tests
 │   └── test_validate_cmd.py # validate command integration tests
 ├── pyproject.toml
@@ -106,10 +129,9 @@ promptops/
 |-----------|-------------|--------|
 | M1 | Scaffold + README | done |
 | M2 | Prompt store — YAML schema + `promptops validate` | done |
-| M3 | Eval engine — run prompts against test suite, collect outputs | planned |
-| M4 | Scoring — deterministic + LLM-as-judge | planned |
+| M3 | Eval engine — run prompts against test suite, deterministic scoring, JSON export | done |
+| M4 | LLM-as-judge scoring | planned |
 | M5 | Diff mode — side-by-side terminal diff of two prompt versions | planned |
-| M6 | Export + CI integration — `--output results.json` | planned |
 
 ## License
 

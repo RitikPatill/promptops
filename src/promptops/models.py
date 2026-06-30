@@ -42,3 +42,16 @@ class TestSuite(BaseModel):
             if case.id is None:
                 case.id = f"tc{i + 1:02d}"
         return self
+
+
+class EvalResult(BaseModel):
+    case_id: str
+    input: dict[str, str]
+    rendered_user: str        # Jinja2-resolved user message
+    output: str               # raw LLM response text
+    latency_ms: float
+    prompt_tokens: int
+    completion_tokens: int
+    token_cost_usd: float     # estimated cost
+    det_pass: bool            # deterministic check result
+    det_reason: str           # human-readable explanation of the check
