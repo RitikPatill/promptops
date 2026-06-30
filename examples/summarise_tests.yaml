@@ -1,0 +1,27 @@
+name: summarise-suite-v1
+cases:
+  - id: tc01
+    input:
+      article: "OpenAI released GPT-4 in March 2023, marking a major leap in large language model capabilities with improved reasoning and multimodal support."
+    expected:
+      - "GPT-4"
+  - id: tc02
+    input:
+      article: "The European Central Bank raised rates by 25bp in its June 2023 meeting, citing persistent inflation above the 2% target."
+    expected:
+      - "rate"
+  - id: tc03
+    input:
+      article: "Elon Musk completed his acquisition of Twitter in October 2022, subsequently rebranding the platform and restructuring its workforce."
+    expected:
+      - "Twitter"
+  - id: tc04
+    input:
+      article: "A new study links ultra-processed food consumption to higher cancer risk, analysing data from over 100,000 participants across 10 years."
+    expected: null
+  - id: tc05
+    input:
+      article: "NASA's Artemis II mission is scheduled for a lunar flyby in 2025, carrying four astronauts on the first crewed Moon mission since Apollo 17."
+    expected:
+      - "Artemis"
+      - "lunar"

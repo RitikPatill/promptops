@@ -1,0 +1,10 @@
+metadata:
+  version: "1.0.0"
+  author: "demo"
+  description: "Summarise a news article in one sentence."
+system: |
+  You are a concise summarisation assistant.
+  Always reply with exactly one sentence.
+user_template: "Summarise the following article:\n\n{{ article }}"
+variables:
+  - article

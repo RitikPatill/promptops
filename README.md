@@ -14,21 +14,29 @@ PromptOps fills that gap.
 - LLM developers who want CI-friendly eval output
 - Anyone who needs rigorous, reproducible prompt testing without a cloud dependency
 
-## What Works (M1)
+## What Works (M2)
 
-The scaffold is in place and the package installs cleanly.
-
+### M1 — Scaffold
 - Python package at `src/promptops/` with `__version__ = "0.1.0"`
 - `pyproject.toml` with pinned runtime dependencies: `typer`, `rich`, `pydantic`, `anthropic`, `openai`, `jinja2`, `pyyaml`
 - Dev dependencies: `pytest`, `pytest-cov`, `ruff`, `mypy`
 - MIT license and `.gitignore`
 - `promptops` entry point registered via `[project.scripts]`; `promptops --help` and `promptops --version` work
-- Test harness in `tests/` with two passing smoke tests (`test_help_exits_zero`, `test_version_flag`)
+
+### M2 — Prompt store + test suite schema
+- Pydantic v2 models in `src/promptops/models.py`: `PromptDefinition`, `TestSuite`, `TestCase`, `ExpectedSpec`
+- YAML loaders in `src/promptops/store.py`: `load_prompt` and `load_suite`
+- `promptops validate <file>` command — validates any prompt or test-suite YAML, prints a rich summary on success, exits 1 on failure
+- Example fixtures under `examples/`: `summarise_v1.yaml` (prompt) and `summarise_tests.yaml` (5-case test suite)
+- `expected` per test case accepts `null`, a regex string, or a list of must-contain strings
+
+```bash
+promptops validate examples/summarise_v1.yaml
+promptops validate examples/summarise_tests.yaml
+```
 
 ## Planned Features
 
-- **Prompt store**: each prompt is a `.yaml` file with `system`, `user_template`, optional `variables`, and metadata (version, author)
-- **Test suite**: a JSON/YAML file of `{input, expected}` pairs; `expected` can be a regex, a list of must-contain strings, or `null` for LLM-judge-only scoring
 - **Eval engine**: resolves variables, calls OpenAI or Anthropic (env-var selected), collects `{output, latency_ms, token_cost}`
 - **Scoring**: two layers — deterministic (regex/substring match) and LLM-as-judge (1–5 Likert score with reasoning)
 - **Rich CLI output**: colour-coded table of per-case scores, aggregate pass-rate, cost estimate
@@ -57,6 +65,16 @@ Usage: promptops [OPTIONS] COMMAND [ARGS]...
 Options:
   -V, --version  Show version and exit.
   --help         Show this message and exit.
+
+Commands:
+  validate  Validate a prompt or test-suite YAML file.
+```
+
+Validate the bundled example fixtures:
+
+```bash
+promptops validate examples/summarise_v1.yaml
+promptops validate examples/summarise_tests.yaml
 ```
 
 ## Architecture
@@ -66,23 +84,28 @@ promptops/
 ├── src/
 │   └── promptops/
 │       ├── __init__.py     # package version
-│       └── cli.py          # Typer app, entry point for all subcommands
+│       ├── cli.py          # Typer app, entry point for all subcommands
+│       ├── models.py       # Pydantic v2 models: PromptDefinition, TestSuite, …
+│       └── store.py        # YAML loaders: load_prompt, load_suite
+├── examples/
+│   ├── summarise_v1.yaml   # example prompt definition
+│   └── summarise_tests.yaml # 5-case test suite
 ├── tests/
-│   └── test_cli.py         # CLI smoke tests
+│   ├── test_cli.py         # CLI smoke tests
+│   ├── test_models.py      # model + loader unit tests
+│   └── test_validate_cmd.py # validate command integration tests
 ├── pyproject.toml
 ├── .gitignore
 ├── LICENSE
 └── README.md
 ```
 
-<!-- TODO: add modules here as they are introduced (e.g. store.py, engine.py, scorer.py, differ.py) -->
-
 ## Roadmap
 
 | Milestone | Description | Status |
 |-----------|-------------|--------|
 | M1 | Scaffold + README | done |
-| M2 | Prompt store — YAML schema + `promptops validate` | planned |
+| M2 | Prompt store — YAML schema + `promptops validate` | done |
 | M3 | Eval engine — run prompts against test suite, collect outputs | planned |
 | M4 | Scoring — deterministic + LLM-as-judge | planned |
 | M5 | Diff mode — side-by-side terminal diff of two prompt versions | planned |
