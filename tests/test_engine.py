@@ -213,3 +213,69 @@ def test_run_eval_det_pass_and_fail():
     assert results[0].det_pass is True
     assert results[1].det_pass is False
     assert "Berlin" in results[1].det_reason
+
+
+# ---------------------------------------------------------------------------
+# run_eval with judge
+# ---------------------------------------------------------------------------
+
+def test_run_eval_with_judge_openai():
+    """Judge call is made and result is stored on EvalResult."""
+    main_response = _make_openai_response("The answer is Paris", 10, 5)
+    judge_response = _make_openai_response('{"score": 4, "reasoning": "Correct answer."}', 50, 20)
+
+    prompt = PromptDefinition(
+        system="You are a geography expert.",
+        user_template="What is the capital of {{ country }}?",
+        variables=["country"],
+        metadata=PromptMetadata(version="1.0"),
+    )
+    suite = TestSuite(
+        name="geo",
+        cases=[TestCase(id="tc01", input={"country": "France"}, expected=ExpectedSpec(root=["Paris"]))],
+    )
+
+    with patch("promptops.engine.openai.OpenAI") as mock_engine_cls, \
+         patch("promptops.scorer.openai.OpenAI") as mock_judge_cls:
+        mock_engine_client = MagicMock()
+        mock_engine_cls.return_value = mock_engine_client
+        mock_engine_client.chat.completions.create.return_value = main_response
+
+        mock_judge_client = MagicMock()
+        mock_judge_cls.return_value = mock_judge_client
+        mock_judge_client.chat.completions.create.return_value = judge_response
+
+        results = run_eval(prompt, suite, provider="openai", model="gpt-4o-mini", judge=True)
+
+    assert len(results) == 1
+    r = results[0]
+    assert r.judge_score == 4
+    assert r.judge_reasoning is not None
+    assert "Correct" in r.judge_reasoning
+
+
+def test_run_eval_without_judge():
+    """When judge=False, judge fields are None / 0.0."""
+    mock_response = _make_openai_response("Hello from GPT", 10, 5)
+
+    prompt = PromptDefinition(
+        system="You are helpful.",
+        user_template="Say hello to {{ name }}.",
+        variables=["name"],
+        metadata=PromptMetadata(version="1.0"),
+    )
+    suite = TestSuite(
+        name="test",
+        cases=[TestCase(id="tc01", input={"name": "Alice"}, expected=ExpectedSpec(root=None))],
+    )
+
+    with patch("promptops.engine.openai.OpenAI") as mock_cls:
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = mock_response
+
+        results = run_eval(prompt, suite, provider="openai", model="gpt-4o-mini", judge=False)
+
+    assert results[0].judge_score is None
+    assert results[0].judge_reasoning is None
+    assert results[0].judge_cost_usd == 0.0

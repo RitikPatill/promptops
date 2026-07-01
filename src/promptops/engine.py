@@ -7,7 +7,7 @@ import jinja2
 import openai
 
 from promptops.models import EvalResult, PromptDefinition, TestSuite
-from promptops.scorer import score_deterministic
+from promptops.scorer import score_deterministic, score_llm_judge
 
 DEFAULT_MODELS: dict[str, str] = {
     "openai": "gpt-4o-mini",
@@ -79,6 +79,9 @@ def run_eval(
     suite: TestSuite,
     provider: str,
     model: str,
+    judge: bool = False,
+    judge_provider: str | None = None,
+    judge_model: str | None = None,
 ) -> list[EvalResult]:
     results: list[EvalResult] = []
 
@@ -99,6 +102,21 @@ def run_eval(
         token_cost_usd = _estimate_cost(model, prompt_tokens, completion_tokens)
         det_pass, det_reason = score_deterministic(output, case.expected)
 
+        if judge:
+            jp = judge_provider or provider
+            jm = judge_model or model
+            j_score, j_reason = score_llm_judge(
+                instruction=prompt.system,
+                input_text=rendered_user,
+                output=output,
+                expected=case.expected,
+                provider=jp,
+                model=jm,
+            )
+            j_cost = _estimate_cost(jm, len(rendered_user) // 4 + 200, 50)
+        else:
+            j_score, j_reason, j_cost = None, None, 0.0
+
         results.append(EvalResult(
             case_id=case.id,
             input=case.input,
@@ -110,6 +128,9 @@ def run_eval(
             token_cost_usd=token_cost_usd,
             det_pass=det_pass,
             det_reason=det_reason,
+            judge_score=j_score,
+            judge_reasoning=j_reason,
+            judge_cost_usd=j_cost,
         ))
 
     return results
