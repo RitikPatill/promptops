@@ -14,7 +14,7 @@ PromptOps fills that gap.
 - LLM developers who want CI-friendly eval output
 - Anyone who needs rigorous, reproducible prompt testing without a cloud dependency
 
-## What Works (M4)
+## What Works (M5)
 
 ### M1 — Scaffold
 - Python package at `src/promptops/` with `__version__ = "0.1.0"`
@@ -48,6 +48,13 @@ PromptOps fills that gap.
 - Summary line shows pass rate, mean judge score (when applicable), total latency, and total cost
 - Full judge data included in `--output` JSON export
 
+### M5 — Diff mode + JSON export
+- `promptops diff v1.yaml v2.yaml --suite tests.yaml` — runs both prompts against the same test suite and renders a side-by-side Rich table per test case
+- Diff table columns: **ID**, **V1 Det**, **V2 Det**, **Δ** (FAIL→PASS/PASS→FAIL indicator), **V1 Output**, **V2 Output**; with `--judge`: **V1 ★**, **V2 ★**, **Δ★**
+- Summary delta line: `Pass-rate: 3/5 (60%) → 4/5 (80%)  Δ +20.0%  |  Cost: $0.0010 → $0.0008  Δ -$0.0002/run` (green for improvement, red for regression)
+- `--output results.json` exports structured JSON with `v1`, `v2`, and `delta` keys for CI/CD integration
+- `--output` flag available on both `run` and `diff` commands
+
 ```bash
 # Set your API key
 export OPENAI_API_KEY=sk-...
@@ -67,14 +74,16 @@ promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml -
 # With JSON export (includes judge scores)
 promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml --judge --output results.json
 
+# Diff two prompt versions (side-by-side comparison)
+promptops diff examples/summarise_v1.yaml examples/summarise_v2.yaml --suite examples/summarise_tests.yaml
+
+# Diff with LLM-as-judge and JSON export
+promptops diff examples/summarise_v1.yaml examples/summarise_v2.yaml --suite examples/summarise_tests.yaml --judge --output diff_results.json
+
 # Validate files
 promptops validate examples/summarise_v1.yaml
 promptops validate examples/summarise_tests.yaml
 ```
-
-## Planned Features
-
-- **Rich diff mode**: `promptops diff v1.yaml v2.yaml --suite tests.yaml` — side-by-side terminal diff of outputs and scores
 
 ## Out of Scope (v1)
 
@@ -100,6 +109,7 @@ Options:
   --help         Show this message and exit.
 
 Commands:
+  diff      Compare two prompt versions side-by-side on the same test suite.
   run       Run a prompt against a test suite; display scores and optional LLM judge.
   validate  Validate a prompt or test-suite YAML file.
 ```
@@ -124,10 +134,12 @@ promptops/
 │       ├── scorer.py       # deterministic + LLM-as-judge scoring
 │       └── store.py        # YAML loaders: load_prompt, load_suite
 ├── examples/
-│   ├── summarise_v1.yaml   # example prompt definition
+│   ├── summarise_v1.yaml   # example prompt definition (v1)
+│   ├── summarise_v2.yaml   # example prompt definition (v2, for diff demo)
 │   └── summarise_tests.yaml # 5-case test suite
 ├── tests/
 │   ├── test_cli.py         # CLI smoke tests
+│   ├── test_diff_cmd.py    # diff command tests (all mocked, no API key needed)
 │   ├── test_engine.py      # engine unit tests (all mocked, no API key needed)
 │   ├── test_models.py      # model + loader unit tests
 │   ├── test_scorer.py      # deterministic and LLM-as-judge scorer unit tests
@@ -146,7 +158,7 @@ promptops/
 | M2 | Prompt store — YAML schema + `promptops validate` | done |
 | M3 | Eval engine — run prompts against test suite, deterministic scoring, JSON export | done |
 | M4 | LLM-as-judge scoring + rich CLI output | done |
-| M5 | Diff mode — side-by-side terminal diff of two prompt versions | planned |
+| M5 | Diff mode — side-by-side terminal diff of two prompt versions | done |
 
 ## License
 
