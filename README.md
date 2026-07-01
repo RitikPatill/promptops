@@ -14,7 +14,7 @@ PromptOps fills that gap.
 - LLM developers who want CI-friendly eval output
 - Anyone who needs rigorous, reproducible prompt testing without a cloud dependency
 
-## What Works (M3)
+## What Works (M4)
 
 ### M1 — Scaffold
 - Python package at `src/promptops/` with `__version__ = "0.1.0"`
@@ -39,6 +39,15 @@ PromptOps fills that gap.
 - JSON export via `--output results.json` for CI integration
 - Cost table covers `gpt-4o-mini`, `gpt-4o`, `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`
 
+### M4 — LLM-as-judge scoring + rich CLI output
+- `score_llm_judge()` in `src/promptops/scorer.py` — sends `(instruction, input, output, expected)` to a configurable judge model, parses a structured JSON response with `score` (1–5) and `reasoning`
+- `EvalResult` gains three new optional fields: `judge_score`, `judge_reasoning`, `judge_cost_usd`
+- `promptops run --judge` flag enables LLM-as-judge scoring (opt-in; no extra API calls without the flag)
+- `--judge-model` flag to specify a different model for the judge (defaults to the same model as the eval)
+- Revised Rich table adds **Judge** (★N/5, color-coded) and **Reasoning** columns when `--judge` is active
+- Summary line shows pass rate, mean judge score (when applicable), total latency, and total cost
+- Full judge data included in `--output` JSON export
+
 ```bash
 # Set your API key
 export OPENAI_API_KEY=sk-...
@@ -46,20 +55,25 @@ export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
 export PROMPTOPS_PROVIDER=anthropic
 
-# Run eval
+# Run eval (deterministic only)
 promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml
 
-# With JSON export
-promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml --output results.json
+# Run eval with LLM-as-judge scoring
+promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml --judge
 
-# Validate files (M2)
+# Use a different judge model
+promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml --judge --judge-model gpt-4o
+
+# With JSON export (includes judge scores)
+promptops run examples/summarise_v1.yaml --suite examples/summarise_tests.yaml --judge --output results.json
+
+# Validate files
 promptops validate examples/summarise_v1.yaml
 promptops validate examples/summarise_tests.yaml
 ```
 
 ## Planned Features
 
-- **LLM-as-judge scoring**: 1–5 Likert score with reasoning per test case
 - **Rich diff mode**: `promptops diff v1.yaml v2.yaml --suite tests.yaml` — side-by-side terminal diff of outputs and scores
 
 ## Out of Scope (v1)
@@ -86,7 +100,7 @@ Options:
   --help         Show this message and exit.
 
 Commands:
-  run       Run a prompt against a test suite and display deterministic scores.
+  run       Run a prompt against a test suite; display scores and optional LLM judge.
   validate  Validate a prompt or test-suite YAML file.
 ```
 
@@ -107,15 +121,16 @@ promptops/
 │       ├── cli.py          # Typer app, entry point for all subcommands
 │       ├── engine.py       # eval runner: Jinja2 render, API dispatch, cost estimation
 │       ├── models.py       # Pydantic v2 models: PromptDefinition, TestSuite, EvalResult, …
-│       ├── scorer.py       # deterministic scoring: regex + substring checks
+│       ├── scorer.py       # deterministic + LLM-as-judge scoring
 │       └── store.py        # YAML loaders: load_prompt, load_suite
 ├── examples/
 │   ├── summarise_v1.yaml   # example prompt definition
 │   └── summarise_tests.yaml # 5-case test suite
 ├── tests/
 │   ├── test_cli.py         # CLI smoke tests
-│   ├── test_engine.py      # engine + scorer unit tests (all mocked, no API key needed)
+│   ├── test_engine.py      # engine unit tests (all mocked, no API key needed)
 │   ├── test_models.py      # model + loader unit tests
+│   ├── test_scorer.py      # deterministic and LLM-as-judge scorer unit tests
 │   └── test_validate_cmd.py # validate command integration tests
 ├── pyproject.toml
 ├── .gitignore
@@ -130,7 +145,7 @@ promptops/
 | M1 | Scaffold + README | done |
 | M2 | Prompt store — YAML schema + `promptops validate` | done |
 | M3 | Eval engine — run prompts against test suite, deterministic scoring, JSON export | done |
-| M4 | LLM-as-judge scoring | planned |
+| M4 | LLM-as-judge scoring + rich CLI output | done |
 | M5 | Diff mode — side-by-side terminal diff of two prompt versions | planned |
 
 ## License

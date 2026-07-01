@@ -55,3 +55,6 @@ class EvalResult(BaseModel):
     token_cost_usd: float     # estimated cost
     det_pass: bool            # deterministic check result
     det_reason: str           # human-readable explanation of the check
+    judge_score: int | None = None       # 1–5 Likert; None when --judge not used
+    judge_reasoning: str | None = None   # one-sentence rationale from judge
+    judge_cost_usd: float = 0.0          # cost of the judge call itself

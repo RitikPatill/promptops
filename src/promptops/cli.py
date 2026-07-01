@@ -82,6 +82,8 @@ def run(
     provider: str = typer.Option(None, "--provider", "-p", help="openai or anthropic."),
     model: str = typer.Option(None, "--model", "-m", help="Model name override."),
     output: Path = typer.Option(None, "--output", "-o", help="Write JSON results here."),
+    judge: bool = typer.Option(False, "--judge/--no-judge", help="Enable LLM-as-judge scoring."),
+    judge_model: str = typer.Option(None, "--judge-model", help="Model for judge (defaults to --model)."),
 ):
     """Run a prompt against a test suite and display deterministic scores."""
     # Resolve provider
@@ -110,7 +112,12 @@ def run(
 
     # Run eval
     try:
-        results = _engine.run_eval(prompt, suite, provider, model)
+        results = _engine.run_eval(
+            prompt, suite, provider, model,
+            judge=judge,
+            judge_provider=provider,
+            judge_model=judge_model,
+        )
     except Exception as exc:
         console.print(f"[red]Eval failed:[/red] {exc}")
         raise typer.Exit(code=1)
@@ -118,28 +125,61 @@ def run(
     # Print results table
     table = Table(title=f"Eval results — {prompt_path.name} × {suite_path.name}")
     table.add_column("ID")
-    table.add_column("Pass")
+    table.add_column("Det")
     table.add_column("Det Reason")
+    if judge:
+        table.add_column("Judge")
+        table.add_column("Reasoning")
     table.add_column("Latency ms", justify="right")
     table.add_column("Cost $", justify="right")
 
     total_cost = 0.0
+    total_latency = 0.0
     passed = 0
+    judge_scores: list[int] = []
+
     for r in results:
-        status = "[green]✓[/green]" if r.det_pass else "[red]✗[/red]"
-        table.add_row(
-            r.case_id,
-            status,
-            r.det_reason,
-            f"{r.latency_ms:.0f}",
-            f"${r.token_cost_usd:.5f}",
-        )
-        total_cost += r.token_cost_usd
+        det_badge = "[green]PASS[/green]" if r.det_pass else "[red]FAIL[/red]"
+        case_cost = r.token_cost_usd + r.judge_cost_usd
+        total_cost += case_cost
+        total_latency += r.latency_ms
         if r.det_pass:
             passed += 1
 
+        row = [r.case_id, det_badge, r.det_reason]
+
+        if judge:
+            if r.judge_score is None:
+                judge_cell = "—"
+                reasoning_cell = "—"
+            elif r.judge_score == 0:
+                judge_cell = "[red]ERR[/red]"
+                reasoning_cell = r.judge_reasoning or "—"
+            else:
+                score = r.judge_score
+                judge_scores.append(score)
+                if score >= 4:
+                    color = "green"
+                elif score == 3:
+                    color = "yellow"
+                else:
+                    color = "red"
+                judge_cell = f"[{color}]★{score}/5[/{color}]"
+                raw_reason = r.judge_reasoning or ""
+                reasoning_cell = (raw_reason[:60] + "…") if len(raw_reason) > 60 else raw_reason
+            row += [judge_cell, reasoning_cell]
+
+        row += [f"{r.latency_ms:.0f}", f"${case_cost:.5f}"]
+        table.add_row(*row)
+
     console.print(table)
-    console.print(f"Pass rate: {passed}/{len(results)} | Total cost: ${total_cost:.5f}")
+
+    summary = f"Pass rate: {passed}/{len(results)} ({100 * passed / len(results):.1f}%)"
+    if judge and judge_scores:
+        mean_judge = sum(judge_scores) / len(judge_scores)
+        summary += f" | Mean judge: {mean_judge:.1f}/5"
+    summary += f" | Total latency: {total_latency:.0f} ms | Total cost: ${total_cost:.5f}"
+    console.print(summary)
 
     # Optional JSON export
     if output is not None:
